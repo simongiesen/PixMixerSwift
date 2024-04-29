@@ -1,77 +1,91 @@
 import Foundation
+import AppKit
 
-func main() {
-    let arguments = CommandLine.arguments
-    guard arguments.count == 2 else {
-        print("Bitte geben Sie den Dateipfad des JPEG-Bildes als Argument an.")
-        return
-    }
+// Funktion zum Zuschneiden des Bildes
+func cropImage(_ image: NSImage, to rect: NSRect) -> NSImage? {
+    let croppedImage = NSImage(size: rect.size)
+    croppedImage.lockFocus()
+    image.draw(in: NSRect(origin: .zero, size: rect.size), from: rect, operation: .copy, fraction: 1.0)
+    croppedImage.unlockFocus()
+    return croppedImage
+}
 
-    let inputImagePath = arguments[1]
-    guard FileManager.default.fileExists(atPath: inputImagePath) else {
+func processImage(atPath path: String) {
+    guard FileManager.default.fileExists(atPath: path) else {
         print("Die angegebene Datei existiert nicht.")
         return
     }
 
+    guard let image = NSImage(contentsOfFile: path) else {
+        print("Konnte das Bild nicht laden.")
+        return
+    }
+
+    let originalSize = image.size
+    let width = Int(originalSize.width / 2)
+    let height = Int(originalSize.height / 2)
+
+    // Quadranten bestimmen
+    let rects = [
+        NSRect(x: 0, y: 0, width: CGFloat(width), height: CGFloat(height)), // oben links
+        NSRect(x: CGFloat(width), y: 0, width: CGFloat(width), height: CGFloat(height)), // oben rechts
+        NSRect(x: 0, y: CGFloat(height), width: CGFloat(width), height: CGFloat(height)), // unten links
+        NSRect(x: CGFloat(width), y: CGFloat(height), width: CGFloat(width), height: CGFloat(height)) // unten rechts
+    ]
+
+    var quadrants: [NSImage] = []
+
+    for rect in rects {
+        if let quadrant = cropImage(image, to: rect) {
+            quadrants.append(quadrant)
+        } else {
+            print("Konnte Quadranten nicht erstellen.")
+            return
+        }
+    }
+
+    // Erstellung des Ergebnisbildes
+    let resultWidth = originalSize.width + CGFloat(width)
+    let resultHeight = originalSize.height + CGFloat(2 * height)
+    let resultSize = NSSize(width: resultWidth, height: resultHeight)
+
+    let resultImage = NSImage(size: resultSize)
+    resultImage.lockFocus()
+    NSColor.white.set()
+    NSBezierPath.fill(NSRect(origin: .zero, size: resultSize))
+
+    // Originalbild oben links
+    image.draw(at: NSPoint(x: 0, y: 0), from: NSRect(origin: .zero, size: originalSize), operation: .sourceOver, fraction: 1.0)
+
+    // Platzierung der Quadranten
+    quadrants[0].draw(at: NSPoint(x: originalSize.width, y: originalSize.height), from: NSRect(origin: .zero, size: originalSize), operation: .sourceOver, fraction: 1.0) // oben links im unteren rechten Eck
+    quadrants[2].draw(at: NSPoint(x: originalSize.width, y: originalSize.height - CGFloat(height)), from: NSRect(origin: .zero, size: originalSize), operation: .sourceOver, fraction: 1.0) // unten links im unteren rechten Eck
+    quadrants[1].draw(at: NSPoint(x: originalSize.width - CGFloat(width), y: originalSize.height), from: NSRect(origin: .zero, size: originalSize), operation: .sourceOver, fraction: 1.0) // oben rechts im unteren rechten Eck
+
+    resultImage.unlockFocus()
+
+    // Ergebnisbild speichern
+    let outputPath = NSHomeDirectory() + "/Desktop/" + (path as NSString).lastPathComponent + "_result.jpg"
+
+    guard let imageData = resultImage.tiffRepresentation,
+          let bitmapImageRep = NSBitmapImageRep(data: imageData),
+          let jpegData = bitmapImageRep.representation(using: .jpeg, properties: [:]) else {
+        print("Konnte das Ergebnisbild nicht speichern.")
+        return
+    }
+
     do {
-        guard let originalImage = NSImage(contentsOfFile: inputImagePath) else {
-            print("Das Bild konnte nicht geladen werden.")
-            return
-        }
-
-        let width = Int(originalImage.size.width) / 2
-        let height = Int(originalImage.size.height) / 2
-
-        var quadrants: [NSImage] = []
-
-        let quadrantRects: [NSRect] = [
-            NSRect(x: 0, y: 0, width: width, height: height),
-            NSRect(x: width, y: 0, width: width, height: height),
-            NSRect(x: 0, y: height, width: width, height: height),
-            NSRect(x: width, y: height, width: width, height: height)
-        ]
-
-        for rect in quadrantRects {
-            if let quadrant = originalImage.subimage(with: rect) {
-                quadrants.append(quadrant)
-            }
-        }
-
-        let resultWidth = Int(originalImage.size.width) + width
-        let resultHeight = Int(originalImage.size.height) + height * 2
-
-        let resultImage = NSImage(size: NSSize(width: resultWidth, height: resultHeight))
-        resultImage.lockFocus()
-
-        NSColor.white.set()
-        NSBezierPath(rect: NSRect(x: 0, y: 0, width: resultWidth, height: resultHeight)).fill()
-
-        originalImage.draw(at: .zero)
-        quadrants[0].draw(at: NSPoint(x: Int(originalImage.size.width), y: Int(originalImage.size.height)))
-        quadrants[2].draw(at: NSPoint(x: Int(originalImage.size.width), y: Int(originalImage.size.height) - height))
-        quadrants[1].draw(at: NSPoint(x: Int(originalImage.size.width) - width, y: Int(originalImage.size.height)))
-
-        resultImage.unlockFocus()
-
-        guard let data = resultImage.tiffRepresentation else {
-            print("Fehler beim Konvertieren des Bildes.")
-            return
-        }
-
-        let outputImagePath = (inputImagePath as NSString).deletingPathExtension + "_result.jpg"
-
-        guard let imageRep = NSBitmapImageRep(data: data) else {
-            print("Fehler beim Erstellen des Bilds.")
-            return
-        }
-
-        let jpegData = imageRep.representation(using: .jpeg, properties: [:])
-        try jpegData?.write(to: URL(fileURLWithPath: outputImagePath))
-
-        print("Das Ergebnisbild wurde unter \(outputImagePath) gespeichert.")
+        try jpegData.write(to: URL(fileURLWithPath: outputPath))
+        print("Das Ergebnisbild wurde unter \(outputPath) gespeichert.")
     } catch {
         print("Ein Fehler ist aufgetreten: \(error.localizedDescription)")
     }
 }
 
-main()
+let arguments = CommandLine.arguments
+
+if arguments.count != 2 {
+    print("Bitte geben Sie den Dateipfad des JPEG-Bildes als Argument an.")
+} else {
+    processImage(atPath: arguments[1])
+}
