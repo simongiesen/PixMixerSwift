@@ -72,6 +72,22 @@ func processImage(atPath path: String) {
     
     resultImage.unlockFocus()
 
+    // Übertragen der DPI-Auflösung
+        if let sourceRep = image.representations.first as? NSBitmapImageRep {
+            resultImage.representations.forEach {
+                if let rep = $0 as? NSBitmapImageRep {
+                    rep.size = resultSize
+                    rep.setProperty(NSBitmapImageRep.PropertyKey(rawValue: "NSImageCompressionFactor"), withValue: NSNumber(value: 1.0))
+                    rep.setProperty(NSBitmapImageRep.PropertyKey(rawValue: "NSImageCompressionFactor"), withValue: NSNumber(value: 1.0))
+                    rep.setProperty(NSBitmapImageRep.PropertyKey(rawValue: "NSImageColorSyncProfileData"), withValue: sourceRep.value(forProperty: NSBitmapImageRep.PropertyKey(rawValue: "NSImageColorSyncProfileData")))
+                    rep.setProperty(NSBitmapImageRep.PropertyKey(rawValue: "NSImageColorSyncProfileURL"), withValue: sourceRep.value(forProperty: NSBitmapImageRep.PropertyKey(rawValue: "NSImageColorSyncProfileURL")))
+                    rep.setProperty(NSBitmapImageRep.PropertyKey(rawValue: "NSImageEXIFData"), withValue: sourceRep.value(forProperty: NSBitmapImageRep.PropertyKey(rawValue: "NSImageEXIFData")))
+                    rep.setProperty(NSBitmapImageRep.PropertyKey(rawValue: "NSImageIPTCData"), withValue: sourceRep.value(forProperty: NSBitmapImageRep.PropertyKey(rawValue: "NSImageIPTCData")))
+                    rep.setProperty(NSBitmapImageRep.PropertyKey(rawValue: "NSImageGamma"), withValue: sourceRep.value(forProperty: NSBitmapImageRep.PropertyKey(rawValue: "NSImageGamma")))
+                }
+            }
+        }
+    
     // Ergebnisbild speichern
     let outputPath = NSHomeDirectory() + "/Desktop/" + (path as NSString).lastPathComponent + "_result.jpg"
 
