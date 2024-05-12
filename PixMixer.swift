@@ -73,37 +73,27 @@ func processImage(atPath path: String) {
     resultImage.unlockFocus()
 
     // Übertragen der DPI-Auflösung
-        if let sourceRep = image.representations.first as? NSBitmapImageRep {
-            resultImage.representations.forEach {
-                if let rep = $0 as? NSBitmapImageRep {
-                    rep.size = resultSize
-                    rep.setProperty(NSBitmapImageRep.PropertyKey(rawValue: "NSImageCompressionFactor"), withValue: NSNumber(value: 1.0))
-                    rep.setProperty(NSBitmapImageRep.PropertyKey(rawValue: "NSImageCompressionFactor"), withValue: NSNumber(value: 1.0))
-                    rep.setProperty(NSBitmapImageRep.PropertyKey(rawValue: "NSImageColorSyncProfileData"), withValue: sourceRep.value(forProperty: NSBitmapImageRep.PropertyKey(rawValue: "NSImageColorSyncProfileData")))
-                    rep.setProperty(NSBitmapImageRep.PropertyKey(rawValue: "NSImageColorSyncProfileURL"), withValue: sourceRep.value(forProperty: NSBitmapImageRep.PropertyKey(rawValue: "NSImageColorSyncProfileURL")))
-                    rep.setProperty(NSBitmapImageRep.PropertyKey(rawValue: "NSImageEXIFData"), withValue: sourceRep.value(forProperty: NSBitmapImageRep.PropertyKey(rawValue: "NSImageEXIFData")))
-                    rep.setProperty(NSBitmapImageRep.PropertyKey(rawValue: "NSImageIPTCData"), withValue: sourceRep.value(forProperty: NSBitmapImageRep.PropertyKey(rawValue: "NSImageIPTCData")))
-                    rep.setProperty(NSBitmapImageRep.PropertyKey(rawValue: "NSImageGamma"), withValue: sourceRep.value(forProperty: NSBitmapImageRep.PropertyKey(rawValue: "NSImageGamma")))
-                }
-            }
-        }
-    
-    // Ergebnisbild speichern
-    let outputPath = NSHomeDirectory() + "/Desktop/" + (path as NSString).lastPathComponent + "_result.jpg"
-
-    guard let imageData = resultImage.tiffRepresentation,
-          let bitmapImageRep = NSBitmapImageRep(data: imageData),
-          let jpegData = bitmapImageRep.representation(using: .jpeg, properties: [:]) else {
-        print("Konnte das Ergebnisbild nicht speichern.")
-        return
-    }
-
-    do {
-        try jpegData.write(to: URL(fileURLWithPath: outputPath))
-        print("Das Ergebnisbild wurde unter \(outputPath) gespeichert.")
-    } catch {
-        print("Ein Fehler ist aufgetreten: \(error.localizedDescription)")
-    }
+       if let sourceRep = image.representations.first as? NSBitmapImageRep,
+          let targetRep = NSBitmapImageRep(data: resultImage.tiffRepresentation!) {
+           targetRep.size = resultSize
+           targetRep.setProperty(NSBitmapImageRep.PropertyKey.compressionFactor, withValue: 1.0)
+           targetRep.setProperty(NSBitmapImageRep.PropertyKey.colorSyncProfileData, withValue: sourceRep.value(forProperty: NSBitmapImageRep.PropertyKey.colorSyncProfileData))
+           targetRep.setProperty(NSBitmapImageRep.PropertyKey.exifData, withValue: sourceRep.value(forProperty: NSBitmapImageRep.PropertyKey.exifData))
+           targetRep.setProperty(NSBitmapImageRep.PropertyKey.imageIPTCData, withValue: sourceRep.value(forProperty: NSBitmapImageRep.PropertyKey.imageIPTCData))
+           targetRep.setProperty(NSBitmapImageRep.PropertyKey.gamma, withValue: sourceRep.value(forProperty: NSBitmapImageRep.PropertyKey.gamma))
+           if let imageData = targetRep.representation(using: .jpeg, properties: [:]) {
+               do {
+                   let outputPath = URL(fileURLWithPath: NSHomeDirectory() + "/Desktop/" + (path as NSString).lastPathComponent + "_result.jpg")
+                   try imageData.write(to: outputPath)
+                   print("Das Ergebnisbild wurde unter \(outputPath) gespeichert.")
+               } catch {
+                   print("Ein Fehler ist aufgetreten: \(error.localizedDescription)")
+               }
+           }
+       } else {
+           print("Konnte die DPI-Auflösung nicht übertragen.")
+       }
+     
 }
 
 let arguments = CommandLine.arguments
